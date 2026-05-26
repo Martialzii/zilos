@@ -2,11 +2,12 @@
 import argparse
 import csv
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 DATA_FILE = Path(__file__).resolve().parent / ".zilos_data.json"
+CONFIG_FILE = Path(__file__).resolve().parent / ".zilos_config.json"
 
 
 def load_activities() -> List[Dict[str, Any]]:
@@ -24,11 +25,32 @@ def save_activities(items: List[Dict[str, Any]]) -> None:
         json.dump(items, f, indent=2, ensure_ascii=False)
 
 
+def load_config() -> Dict[str, Any]:
+    if not CONFIG_FILE.exists():
+        return {}
+    try:
+        with CONFIG_FILE.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        return {}
+
+
+def save_config(config: Dict[str, Any]) -> None:
+    with CONFIG_FILE.open("w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+
+
 def normalize_date(value: str) -> str:
     try:
         return datetime.fromisoformat(value).date().isoformat()
     except ValueError:
         raise argparse.ArgumentTypeError("Date must be YYYY-MM-DD")
+
+
+def normalize_tags(value: Optional[str]) -> List[str]:
+    if not value:
+        return []
+    return [tag.strip() for tag in value.split(",") if tag.strip()]
 
 
 def format_duration(minutes: int) -> str:
@@ -53,6 +75,9 @@ def filter_activities(activities: List[Dict[str, Any]], args: argparse.Namespace
         activities = [item for item in activities if item["project"] == args.project]
     if getattr(args, "priority", None):
         activities = [item for item in activities if item["priority"] == args.priority]
+    if getattr(args, "tags", None):
+        requested_tag = args.tags.strip()
+        activities = [item for item in activities if requested_tag in item.get("tags", [])]
     return activities
 
 
@@ -66,6 +91,8 @@ def add_activity(args: argparse.Namespace) -> None:
         "project": args.project.strip() if args.project else "default",
         "user": args.user.strip() if args.user else "anonymous",
         "priority": args.priority,
+        "tags": normalize_tags(args.tags),
+        "recurring": args.recurring,
         "duration": args.duration,
         "notes": args.notes.strip() if args.notes else "",
         "date": args.date or datetime.now().date().isoformat(),
@@ -86,7 +113,7 @@ def list_activities(args: argparse.Namespace) -> None:
     rows = []
     for item in sorted(activities, key=lambda x: (x["date"], x["id"])):
         rows.append(
-            f"#{item['id']} [{item['status']}] {item['date']} - {item['name']} ({item['project']}, {item['category']}, user={item['user']}, priority={item['priority']}, {format_duration(item['duration'])})"
+            f"#{item['id']} [{item['status']}] {item['date']} - {item['name']} ({item['project']}, {item['category']}, user={item['user']}, priority={item['priority']}, recurring={item['recurring']}, tags={','.join(item['tags']) if item['tags'] else 'none'}, {format_duration(item['duration'])})"
         )
         if item["notes"]:
             rows.append(f"    Notes: {item['notes']}")
@@ -223,28 +250,86 @@ def export_activities(args: argparse.Namespace) -> None:
         return
 
     path = Path(args.path).resolve()
-    with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(
-            f,
-            fieldnames=[
-                "id",
-                "name",
-                "project",
-                "category",
-                "priority",
-                "user",
-                "duration",
-                "status",
-                "date",
-                "notes",
-                "created_at",
-            ],
-        )
-        writer.writeheader()
-        for item in activities:
-            writer.writerow({key: item.get(key, "") for key in writer.fieldnames})
+    if args.format == "json":
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(activities, f, indent=2, ensure_ascii=False)
+    else:
+        with path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "id",
+                    "name",
+                    "project",
+                    "category",
+                    "priority",
+                    "tags",
+                    "recurring",
+                    "user",
+                    "duration",
+                    "status",
+                    "date",
+                    "notes",
+                    "created_at",
+                ],
+            )
+            writer.writeheader()
+            for item in activities:
+                writer.writerow(
+                    {
+                        "id": item.get("id", ""),
+                        "name": item.get("name", ""),
+                        "project": item.get("project", ""),
+                        "category": item.get("category", ""),
+                        "priority": item.get("priority", ""),
+                        "tags": ",".join(item.get("tags", [])),
+                        "recurring": item.get("recurring", "none"),
+                        "user": item.get("user", ""),
+                        "duration": item.get("duration", ""),
+                        "status": item.get("status", ""),
+                        "date": item.get("date", ""),
+                        "notes": item.get("notes", ""),
+                        "created_at": item.get("created_at", ""),
+                    }
+                )
 
     print(f"Exported {len(activities)} activities to {path}")
+
+
+def due_activities(args: argparse.Namespace) -> None:
+    activities = filter_activities(load_activities(), args)
+    if args.overdue:
+        today = datetime.now().date().isoformat()
+        activities = [item for item in activities if item["date"] < today and item["status"] != "complete"]
+    if not activities:
+        print("No due activities found.")
+        return
+
+    print("Due activities")
+    print("--------------")
+    for item in sorted(activities, key=lambda x: (x["date"], x["id"])):
+        print(
+            f"#{item['id']} {item['date']} - {item['name']} ({item['project']}, {item['category']}, user={item['user']}, priority={item['priority']}, recurring={item['recurring']})"
+        )
+
+
+def setup_paypal(args: argparse.Namespace) -> None:
+    config = load_config()
+    config["paypal_email"] = args.paypal_email.strip()
+    save_config(config)
+    print(f"Saved PayPal merchant email: {config['paypal_email']}")
+
+
+def subscription(args: argparse.Namespace) -> None:
+    config = load_config()
+    paypal_email = config.get("paypal_email")
+    if not paypal_email:
+        print("No PayPal email configured. Use `zilos setup-paypal --paypal-email you@example.com`.")
+        return
+    print("PayPal subscription stub")
+    print(f"Merchant: {paypal_email}")
+    print("Open this stub URL on your browser to simulate a subscription setup:")
+    print("https://www.paypal.com/checkoutnow?merchant=YOUR_MERCHANT_ID")
 
 
 def parse_args() -> argparse.Namespace:
@@ -265,6 +350,13 @@ def parse_args() -> argparse.Namespace:
         default="medium",
         help="Task priority",
     )
+    add_parser.add_argument("--tags", help="Comma-separated tags to attach to the activity")
+    add_parser.add_argument(
+        "--recurring",
+        choices=["none", "daily", "weekly", "monthly"],
+        default="none",
+        help="Recurring interval for the activity",
+    )
     add_parser.add_argument("-n", "--notes", help="Optional notes")
     add_parser.add_argument("--date", type=normalize_date, help="Date for the activity (YYYY-MM-DD)")
     add_parser.set_defaults(func=add_activity)
@@ -276,6 +368,7 @@ def parse_args() -> argparse.Namespace:
     list_parser.add_argument("--user", help="Filter by user")
     list_parser.add_argument("--project", help="Filter by project")
     list_parser.add_argument("--priority", choices=["low", "medium", "high"], help="Filter by priority")
+    list_parser.add_argument("--tags", help="Filter by tag")
     list_parser.set_defaults(func=list_activities)
 
     complete_parser = subparsers.add_parser("complete", help="Mark an activity complete")
@@ -311,14 +404,31 @@ def parse_args() -> argparse.Namespace:
     stats_parser.add_argument("--priority", choices=["low", "medium", "high"], help="Filter by priority")
     stats_parser.set_defaults(func=stats)
 
-    export_parser = subparsers.add_parser("export", help="Export filtered activities to CSV")
-    export_parser.add_argument("--path", default="zilos_export.csv", help="Export CSV file path")
+    export_parser = subparsers.add_parser("export", help="Export filtered activities to CSV or JSON")
+    export_parser.add_argument("--path", default="zilos_export.csv", help="Export file path")
+    export_parser.add_argument("--format", choices=["csv", "json"], default="csv", help="Export format")
     export_parser.add_argument("--today", action="store_true", help="Only export today’s activities")
     export_parser.add_argument("--category", help="Filter by category")
     export_parser.add_argument("--project", help="Filter by project")
     export_parser.add_argument("--user", help="Filter by user")
     export_parser.add_argument("--priority", choices=["low", "medium", "high"], help="Filter by priority")
+    export_parser.add_argument("--tags", help="Filter by tag")
     export_parser.set_defaults(func=export_activities)
+
+    due_parser = subparsers.add_parser("due", help="List due or overdue activities")
+    due_parser.add_argument("--overdue", action="store_true", help="Show only overdue activities")
+    due_parser.add_argument("--project", help="Filter by project")
+    due_parser.add_argument("--category", help="Filter by category")
+    due_parser.add_argument("--user", help="Filter by user")
+    due_parser.add_argument("--priority", choices=["low", "medium", "high"], help="Filter by priority")
+    due_parser.set_defaults(func=due_activities)
+
+    paypal_setup = subparsers.add_parser("setup-paypal", help="Save your PayPal merchant email")
+    paypal_setup.add_argument("--paypal-email", required=True, help="PayPal merchant email")
+    paypal_setup.set_defaults(func=setup_paypal)
+
+    subscription_parser = subparsers.add_parser("subscription", help="Show PayPal subscription stub info")
+    subscription_parser.set_defaults(func=subscription)
 
     return parser.parse_args()
 

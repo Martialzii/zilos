@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.0
+
+- Added activity `tags`
+- Added recurring task support with `--recurring` (`none`, `daily`, `weekly`, `monthly`)
+- Added `due` command to view due and overdue activities
+- Added PayPal setup and subscription stub commands
+- Added JSON export support
+- Updated docs for versioned access and new features
+- Updated package metadata to `0.4.0`
+
 ## v0.3.0
 
 - Added `project` support for activities
