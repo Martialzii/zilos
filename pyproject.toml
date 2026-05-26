@@ -1,7 +1,7 @@
 [project]
 name = "zilos"
-version = "0.2.0"
-description = "Zilos CLI for micro activity tracking and average work reporting."
+version = "0.3.0"
+description = "Zilos CLI for micro activity tracking, project reporting, and advanced stats."
 authors = ["Cyrus <cyssifa@gmail.com>"]
 readme = "README.md"
 requires-python = ">=3.9"
