@@ -13,6 +13,7 @@ A small, marketable micro-activity tracker for daily focus and productivity.
 - Calculates average activity duration by user
 - Shows advanced stats by user, project, category, and priority
 - Exports activity data to CSV
+- Keeps previous version accessible via `zilos_0_2_0.py`
 - Provides a versioned CLI file: `zilos_0_3_0.py`
 
 ## Why this is marketable

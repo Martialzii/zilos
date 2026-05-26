@@ -40,6 +40,16 @@ zilos export --path zilos_report.csv --project zilos-app
 python zilos_0_3_0.py add "Write notes" -d 15 -c work -p zilos-app -u cyrus --priority medium
 ```
 
+## Previous version access
+
+The prior released version is still available as an alias script:
+
+```bash
+python zilos_0_2_0.py add "Write notes" -d 15 -c work -u cyrus
+```
+
+Use this when you need the older `v0.2.0` behavior while keeping the new `v0.3.0` workflow active.
+
 ## Direct script usage
 
 ```bash
