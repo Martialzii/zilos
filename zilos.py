@@ -45,6 +45,7 @@ def add_activity(args: argparse.Namespace) -> None:
         "id": activity_id,
         "name": args.name.strip(),
         "category": args.category.strip() if args.category else "general",
+        "user": args.user.strip() if args.user else "anonymous",
         "duration": args.duration,
         "notes": args.notes.strip() if args.notes else "",
         "date": args.date or datetime.now().date().isoformat(),
@@ -53,7 +54,7 @@ def add_activity(args: argparse.Namespace) -> None:
     }
     activities.append(activity)
     save_activities(activities)
-    print(f"Added activity #{activity_id}: {activity['name']}")
+    print(f"Added activity #{activity_id}: {activity['name']} ({activity['user']})")
 
 
 def list_activities(args: argparse.Namespace) -> None:
@@ -72,7 +73,7 @@ def list_activities(args: argparse.Namespace) -> None:
     rows = []
     for item in sorted(activities, key=lambda x: (x["date"], x["id"])):
         rows.append(
-            f"#{item['id']} [{item['status']}] {item['date']} - {item['name']} ({item['category']}, {format_duration(item['duration'])})"
+            f"#{item['id']} [{item['status']}] {item['date']} - {item['name']} ({item['category']}, user={item['user']}, {format_duration(item['duration'])})"
         )
         if item["notes"]:
             rows.append(f"    Notes: {item['notes']}")
@@ -127,6 +128,46 @@ def summary(args: argparse.Namespace) -> None:
         print(f"  {category}: {format_duration(minutes)}")
 
 
+def average(args: argparse.Namespace) -> None:
+    activities = load_activities()
+    if args.today:
+        today = datetime.now().date().isoformat()
+        activities = [item for item in activities if item["date"] == today]
+    if args.category:
+        activities = [item for item in activities if item["category"] == args.category]
+    if args.user:
+        activities = [item for item in activities if item["user"] == args.user]
+
+    if not activities:
+        print("No matching activities to average.")
+        return
+
+    per_user: Dict[str, List[int]] = {}
+    for item in activities:
+        per_user.setdefault(item["user"], []).append(item["duration"])
+
+    print("Average activity duration")
+    print("-------------------------")
+    if args.category:
+        print(f"Category: {args.category}")
+    if args.today:
+        print(f"Date: {today}")
+    if args.user:
+        print(f"User: {args.user}")
+
+    total_duration = 0
+    total_count = 0
+    for user, durations in sorted(per_user.items()):
+        user_total = sum(durations)
+        user_count = len(durations)
+        total_duration += user_total
+        total_count += user_count
+        print(f"{user}: {format_duration(round(user_total / user_count))} average over {user_count} activity(ies)")
+
+    if len(per_user) > 1:
+        print(f"Overall average: {format_duration(round(total_duration / total_count))} over {total_count} activities")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Zilos CLI: track short daily tasks with speed and focus."
@@ -137,6 +178,7 @@ def parse_args() -> argparse.Namespace:
     add_parser.add_argument("name", help="Activity name")
     add_parser.add_argument("-d", "--duration", type=int, default=10, help="Duration in minutes")
     add_parser.add_argument("-c", "--category", help="Category name")
+    add_parser.add_argument("-u", "--user", help="User who performed the activity")
     add_parser.add_argument("-n", "--notes", help="Optional notes")
     add_parser.add_argument("--date", type=normalize_date, help="Date for the activity (YYYY-MM-DD)")
     add_parser.set_defaults(func=add_activity)
@@ -162,6 +204,12 @@ def parse_args() -> argparse.Namespace:
     summary_parser = subparsers.add_parser("summary", help="Show time summary")
     summary_parser.add_argument("--today", action="store_true", help="Summarize only today’s activities")
     summary_parser.set_defaults(func=summary)
+
+    average_parser = subparsers.add_parser("average", help="Show average duration per user")
+    average_parser.add_argument("--category", help="Category to average, e.g. work")
+    average_parser.add_argument("--user", help="Only show averages for this user")
+    average_parser.add_argument("--today", action="store_true", help="Only include today’s activities")
+    average_parser.set_defaults(func=average)
 
     return parser.parse_args()
 
