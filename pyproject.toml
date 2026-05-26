@@ -1,0 +1,11 @@
+[project]
+name = "zilos"
+version = "0.2.0"
+description = "Zilos CLI for micro activity tracking and average work reporting."
+authors = ["Cyrus <cyssifa@gmail.com>"]
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+
+[project.scripts]
+zilos = "zilos:main"

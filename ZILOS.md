@@ -5,10 +5,12 @@ A small, marketable micro-activity tracker for daily focus and productivity.
 ## What it does
 
 - Adds short activities like "Plan meeting", "Write outline", or "Review notes"
-- Stores duration, category, notes, and date
+- Stores duration, category, user, notes, and date
 - Lists all activities or just today’s work
 - Marks items complete with a single command
 - Summarizes total time and category breakdowns
+- Calculates average activity duration by user
+- Provides a versioned CLI file: `zilos_0_2_0.py`
 
 ## Why this is marketable
 
