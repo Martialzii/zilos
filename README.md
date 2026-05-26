@@ -2,6 +2,11 @@
 
 Zilos is a small, installable CLI tool for tracking micro activities, focusing on work time and average duration by user.
 
+## GitHub
+
+- Repository: https://github.com/Martialzii/zilos
+- Release: `v0.2.0`
+
 ## Features
 
 - Add short activities with duration, category, user, and notes
